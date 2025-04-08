@@ -37,7 +37,7 @@ const FileUpload = ({ user }) => {
       // 🔐 Encrypt the file
       const { encryptedBlob, iv } = await encryptFile(selectedFile, user);
 
-      const response = await pinFileToIPFS(encryptedBlob);
+      const response = await pinFileToIPFS(encryptedBlob, selectedFile.name+".enc");
       const cid = response.data["cid"];
 
       if (
