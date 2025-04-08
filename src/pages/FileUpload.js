@@ -7,6 +7,7 @@ import { db } from "../firebase";
 import FileUploader from "../components/FileUploader";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { encryptFile } from "../FileEncDec";
 
 const FileUpload = ({ user }) => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -26,81 +27,6 @@ const FileUpload = ({ user }) => {
         });
   };
 
-  const deriveKeyFromEmail = async (email, salt) => {
-    const encoder = new TextEncoder();
-
-    // 1. Create base key from email
-    const keyMaterial = await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(email),
-      { name: "PBKDF2" },
-      false,
-      ["deriveBits"]
-    );
-
-    // 2. Derive 256-bit raw key
-    const derivedBits = await crypto.subtle.deriveBits(
-      {
-        name: "PBKDF2",
-        salt: encoder.encode(salt),
-        iterations: 100000,
-        hash: "SHA-256",
-      },
-      keyMaterial,
-      256 // bits
-    );
-
-    // Log the key for debug (hex)
-    // const rawKey = await crypto.subtle.exportKey("raw", derivedBits);
-    // const keyArray = new Uint8Array(rawKey);
-    // const keyHex = [...keyArray].map(b => b.toString(16).padStart(2, "0")).join("");
-
-    // 3. Import as AES-GCM usable key
-    return await crypto.subtle.importKey(
-      "raw",
-      derivedBits,
-      { name: "AES-GCM" },
-      false, // ← this is not allowed if you want to export key then change to true
-      ["encrypt", "decrypt"]
-    );
-  };
-
-  function arrayBufferToBase64(buffer) {
-    let binary = "";
-    const bytes = new Uint8Array(buffer);
-    const chunkSize = 0x8000; // 32K chunks to prevent stack overflow
-
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(
-        null,
-        bytes.subarray(i, i + chunkSize)
-      );
-    }
-
-    return btoa(binary);
-  }
-
-  const encryptFile = async (file, email) => {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const saltString = JSON.parse(
-      localStorage.getItem(`userProfile-${user.uid}`)
-    ).salt;
-    const salt = Uint8Array.from(atob(saltString), (c) => c.charCodeAt(0));
-    const cryptoKey = await deriveKeyFromEmail(email, salt);
-    const fileBuffer = await file.arrayBuffer();
-
-    const encrypted = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      cryptoKey,
-      fileBuffer
-    );
-
-    const encryptedBase64 = arrayBufferToBase64(encrypted);
-    const encryptedBlob = new Blob([encryptedBase64], { type: "text/plain" });
-
-    return { encryptedBlob, iv };
-  };
-
   const handleSubmission = async () => {
     try {
       if (!selectedFile) {
@@ -109,7 +35,7 @@ const FileUpload = ({ user }) => {
       }
 
       // 🔐 Encrypt the file
-      const { encryptedBlob, iv } = await encryptFile(selectedFile, user.email);
+      const { encryptedBlob, iv } = await encryptFile(selectedFile, user);
 
       const response = await pinFileToIPFS(encryptedBlob);
       const cid = response.data["cid"];
@@ -139,7 +65,7 @@ const FileUpload = ({ user }) => {
     }
   };
 
-  const storeHashOnBlockchain = async (hash, iv) => {
+  const storeHashOnBlockchain = async (cid, iv) => {
     try {
       if (!window.ethereum) {
         toastCall("error", "MetaMask is not installed!");
@@ -155,7 +81,7 @@ const FileUpload = ({ user }) => {
       const contract = new Contract(contractAddress, contractABI, signer);
 
       // Send the transaction to store the IPFS hash on the blockchain
-      const tx = await contract.setIPFSHash(hash);
+      const tx = await contract.setIPFSHash(cid);
 
       toastCall("success", "CID Stored to Blockchain Successfully!");
 
