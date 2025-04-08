@@ -12,21 +12,36 @@ const Profile = ({ user }) => {
   useEffect(() => {
     const getUserDetails = async () => {
       try {
-        if (user) {
+        if (!user) return;
+
+        // Try to get user data from localStorage
+        const cachedUserData = localStorage.getItem(`userProfile-${user.uid}`);
+        if (cachedUserData) {
+          setUserData(JSON.parse(cachedUserData));
+          setIsLoading(false);
+        } else {
+          // Fetch from Firebase
           const userRef = doc(db, "Users", user.uid);
           const userSnap = await getDoc(userRef);
+
           if (userSnap.exists()) {
-            setUserData(userSnap.data());
-          } 
-          else {
+            const data = userSnap.data();
+            setUserData(data);
+            localStorage.setItem(
+              `userProfile-${user.uid}`,
+              JSON.stringify(data)
+            );
+          } else {
             console.error("No such document!");
           }
           setIsLoading(false);
         }
       } catch (err) {
         console.error("GetUserDetails Error: ", err);
+        setIsLoading(false);
       }
     };
+
     getUserDetails();
   }, [user]);
 
@@ -39,8 +54,7 @@ const Profile = ({ user }) => {
         ) : userData ? (
           <div className="profile-card">
             <div className="profile-header">
-              <FaUserCircle className="profile-avatar" />{" "}
-              {/* Default Icon Avatar */}
+              <FaUserCircle className="profile-avatar" />
               <h2>
                 {userData.firstName} {userData.lastName}
               </h2>

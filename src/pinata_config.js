@@ -1,7 +1,7 @@
-export const pinFileToIPFS = async (file) => {
+export const pinFileToIPFS = async (encryptedBlob) => {
   try {
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", encryptedBlob);
 
     formData.append("network", "public");
 

@@ -14,6 +14,7 @@ const Navbar = ({ user }) => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
+      localStorage.removeItem(`userProfile-${user.uid}`);
       navigate("/"); // Redirect to home page after logout
     } catch (error) {
       console.error("Logout failed:", error.message);

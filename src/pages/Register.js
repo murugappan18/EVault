@@ -18,12 +18,17 @@ const Register = () => {
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       const user = auth.currentUser;
+
+      const saltArray = crypto.getRandomValues(new Uint8Array(16));
+      const salt = btoa(String.fromCharCode(...saltArray));
+
       if (user) {
         await setDoc(doc(db, "Users", user.uid), {
           email: user.email,
           firstName: fname,
           lastName: lname,
           userType: userType,
+          salt: salt
         });
       }
       toast.success("User Registered Successfully!!", {
